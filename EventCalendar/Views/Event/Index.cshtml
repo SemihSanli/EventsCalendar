@@ -1,0 +1,295 @@
+﻿
+@{
+    ViewBag.Title = "Index";
+    Layout = "~/Views/Shared/_MainLayout.cshtml";
+}
+
+<div class="mb-3">
+    <a href="/Category/AddCategory" class="btn btn-success">Kategori Ekle</a>
+</div>
+
+<section class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-3">
+                <div class="sticky-top mb-3">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4 class="card-title">Etkinlikler</h4>
+                        </div>
+                        <div class="card-body">
+                            <div id="external-events">
+                                <!-- Son 5 etkinlik JS ile yüklenecek -->
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Etkinlik Oluştur</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label for="event-category">Kategori</label>
+                                <select id="event-category" class="form-control"></select>
+                            </div>
+                            <div class="input-group mb-2">
+                                <input id="new-event" type="text" class="form-control" placeholder="Etkinlik">
+                                <div class="input-group-append">
+                                    <button id="add-new-event" type="button" class="btn btn-primary">Ekle</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-9">
+                <div class="card card-primary">
+                    <div class="card-body p-0">
+                        <div id="calendar"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+@section scripts {
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales/tr.js"></script>
+<script>
+$(function () {
+    var categories = [];
+    var events = [];
+    var currCategoryId = null;
+    var currCategoryColor = '#3788d8';
+
+    // Kategorileri çek
+    function loadCategories() {
+        $.getJSON('/Category/GetCategories', function (data) {
+            categories = data;
+            var $catSelect = $('#event-category');
+            $catSelect.empty();
+            data.forEach(function (cat, i) {
+                $catSelect.append('<option value="' + cat.id + '" data-color="' + cat.color + '">' + cat.name + '</option>');
+            });
+            if (data.length > 0) {
+                currCategoryId = data[0].id;
+                currCategoryColor = data[0].color;
+            }
+            $catSelect.change();
+            loadDraggableEvents();
+        });
+    }
+
+    // Event kutucuklarını çek ve oluştur
+    function loadDraggableEvents() {
+        $('#external-events').empty();
+        // Sadece kategorileri kutucuk olarak gösteriyoruz, her kategori için bir kutucuk
+        categories.forEach(function (cat) {
+            var $event = $('<div />');
+            $event.addClass('external-event');
+            $event.text(cat.name);
+            $event.attr('data-category-id', cat.id);
+            $event.css({
+                'background-color': cat.color,
+                'border-color': cat.color,
+                'color': '#fff',
+                'margin-bottom': '5px'
+            });
+            $('#external-events').append($event);
+        });
+        ini_events($('#external-events div.external-event'));
+    }
+
+    // Eventleri takvime yükle
+    function loadCalendarEvents(callback) {
+        $.getJSON('/Event/GetEvents', function (data) {
+            events = data;
+            if (typeof callback === 'function') callback(data);
+        });
+    }
+
+    // Kategori seçimi değişince renk güncelle
+    $('#event-category').on('change', function () {
+        var color = $(this).find('option:selected').data('color');
+        currCategoryId = $(this).val();
+        currCategoryColor = color;
+        $('#add-new-event').css({
+            'background-color': color,
+            'border-color': color
+        });
+    });
+
+    // Yeni event ekle
+    $('#add-new-event').click(function (e) {
+        e.preventDefault();
+        var val = $('#new-event').val();
+        if (!val || !currCategoryId) return;
+        // Takvimde hangi ay görünüyorsa o ayın ilk gününü al
+        var view = calendar.view;
+        var startDate = view.currentStart ? view.currentStart : new Date();
+        $.post('/Event/AddEvent', {
+            title: val,
+            start: startDate.toISOString(),
+            end: startDate.toISOString(),
+            categoryId: currCategoryId
+        }, function (res) {
+            if (res.success) {
+                loadCalendarEvents(function () {
+                    calendar.refetchEvents();
+                });
+                loadDraggableEvents();
+                $('#new-event').val('');
+            }
+        });
+    });
+
+    // Draggable eventleri başlat
+    function ini_events(ele) {
+        ele.each(function () {
+            var eventObject = {
+                title: $.trim($(this).text()),
+                categoryId: $(this).data('category-id')
+            };
+            $(this).data('eventObject', eventObject);
+            $(this).draggable({
+                zIndex: 1070,
+                revert: true,
+                revertDuration: 0
+            });
+        });
+    }
+
+    // FullCalendar ve sürükle-bırak
+    var Calendar = FullCalendar.Calendar;
+    var Draggable = FullCalendar.Draggable;
+    var calendarEl = document.getElementById('calendar');
+    var calendar = new Calendar(calendarEl, {
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,timeGridDay'
+        },
+        themeSystem: 'bootstrap',
+        editable: true,
+        droppable: true,
+        locale: 'tr',
+        events: function (info, successCallback, failureCallback) {
+            loadCalendarEvents(function (data) {
+                var mapped = data.map(function (e) {
+                    return {
+                        id: e.id,
+                        title: e.title,
+                        start: e.start,
+                        end: e.end,
+                        backgroundColor: e.color,
+                        borderColor: e.color,
+                        categoryId: e.categoryId
+                    };
+                });
+                successCallback(mapped);
+            });
+        },
+        drop: function (info) {
+            var categoryId = $(info.draggedEl).data('category-id');
+            var title = $(info.draggedEl).text();
+            var color = $(info.draggedEl).css('background-color');
+            var start = info.dateStr;
+            var end = info.dateStr;
+            // Eventi backend'e kaydet
+            $.post('/Event/AddEvent', {
+                title: title,
+                start: start,
+                end: end,
+                categoryId: categoryId
+            }, function (res) {
+                if (res.success) {
+                    calendar.refetchEvents();
+                }
+            });
+            if ($('#drop-remove').is(':checked')) {
+                info.draggedEl.parentNode.removeChild(info.draggedEl);
+            }
+        },
+        eventDrop: function (info) {
+            // Takvimdeki event başka tarihe sürüklenirse
+            $.post('/Event/UpdateEventDate', {
+                id: info.event.id,
+                start: info.event.start.toISOString(),
+                end: info.event.end ? info.event.end.toISOString() : info.event.start.toISOString()
+            }, function (res) {
+                if (!res.success) {
+                    alert('Event update failed!');
+                    info.revert();
+                }
+            });
+        },
+        eventContent: function(arg) {
+            // Başlık, solunda renkli border, sağda sil ve güncelle butonları
+            var color = arg.event.backgroundColor || '#3788d8';
+            var title = arg.event.title;
+            var html = '<div style="display:flex;align-items:center;justify-content:space-between;">' +
+                '<span style="display:inline-block;width:6px;height:22px;border-radius:3px;background:' + color + ';margin-right:6px;flex-shrink:0;"></span>' +
+                '<span style="word-break:break-word;white-space:normal;flex:1;min-width:0;">' + title + '</span>' +
+                '<span style="display:flex;gap:4px;align-items:center;flex-shrink:0;">' +
+                '<a href="/Event/UpdateEventDate/' + arg.event.id + '" class="btn btn-link btn-sm p-0 ml-2" title="Düzenle" style="color:#007bff;"><i class="fas fa-edit"></i></a>' +
+                '<button class="btn btn-link btn-sm p-0 ml-2 delete-event-btn" data-event-id="' + arg.event.id + '" title="Sil" style="color:#dc3545;"><i class="fas fa-trash"></i></button>' +
+                '</span>' +
+                '</div>';
+            return { html: html };
+        }
+    });
+    calendar.render();
+
+    // Event silme butonu için event delegation
+    $(document).on('click', '.delete-event-btn', function(e) {
+        e.stopPropagation();
+        var eventId = $(this).data('event-id');
+        if (confirm('Bu etkinliği silmek istediğinize emin misiniz?')) {
+            $.post('/Event/DeleteEvent', { id: eventId }, function(res) {
+                if (res.success) {
+                    calendar.refetchEvents();
+                } else {
+                    alert('Silme başarısız: ' + (res.message || 'Bilinmeyen hata'));
+                }
+            });
+        }
+    });
+
+    // Tüm etkinlikleri yükle
+    function loadAllEvents() {
+        $.getJSON('/Event/GetEvents', function (data) {
+            $('#external-events').empty();
+            data.forEach(function (ev) {
+                var $event = $('<div />');
+                $event.addClass('external-event');
+                $event.text(ev.title);
+                $event.attr('data-category-id', ev.categoryId);
+                $event.css({
+                    'background-color': ev.color,
+                    'border-color': ev.color,
+                    'color': '#fff',
+                    'margin-bottom': '5px'
+                });
+                $('#external-events').append($event);
+            });
+            ini_events($('#external-events div.external-event'));
+        });
+    }
+
+    // Sayfa yüklenince kategorileri ve eventleri çek
+    loadCategories();
+    loadAllEvents();
+});
+</script>
+}
+
+
+
+
+
+
+
+
+
+
+

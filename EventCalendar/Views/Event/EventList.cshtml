@@ -1,0 +1,61 @@
+﻿@model IEnumerable<EventCalendar.Entities.Event>
+@{
+    ViewBag.Title = "Etkinlikler";
+    Layout = "~/Views/Shared/_MainLayout.cshtml";
+    var grouped = Model.GroupBy(e => new { e.StartDate.Year, e.StartDate.Month })
+        .OrderByDescending(g => g.Key.Year).ThenByDescending(g => g.Key.Month)
+        .ToList();
+    string[] aylar = { "", "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık" };
+    string[] renkler = { "#007bff", "#6610f2", "#6f42c1", "#e83e8c", "#fd7e14", "#28a745", "#20c997", "#17a2b8", "#ffc107", "#dc3545", "#343a40", "#fdc006" };
+}
+
+<h2 class="mb-4 text-center" style="font-size:2.2rem;font-weight:700;letter-spacing:1px;color:#333;">
+    <span style="font-size:2.2rem;vertical-align:middle;">📅</span> Etkinlikler
+</h2>
+
+<div class="row">
+@foreach (var group in grouped)
+{
+    var color = renkler[(group.Key.Month-1) % renkler.Length];
+    <div class="col-12 mb-4">
+        <div class="card shadow-sm">
+            <div class="card-header" style="background:@color;color:#fff;">
+                <h5 class="mb-0" style="font-size:1.3rem;letter-spacing:0.5px;">
+                    <span style="font-size:1.3rem;vertical-align:middle;">🗓️</span> @aylar[group.Key.Month] @group.Key.Year
+                </h5>
+            </div>
+            <div class="card-body">
+                @if (!group.Any())
+                {
+                    <div class="text-muted">Bu ayda etkinlik yok.</div>
+                }
+                else
+                {
+                    <div class="row">
+                        @foreach (var ev in group.OrderBy(e => e.StartDate))
+                        {
+                            <div class="col-md-6 col-lg-4 mb-3">
+                                <div class="card h-100 border-left" style="border-left:8px solid @(ev.Category != null ? ev.Category.Color : color);">
+                                    <div class="card-body">
+                                        <h5 class="card-title mb-3">@ev.Title</h5>
+                                        <div class="mb-3 d-flex align-items-center" style="font-size:0.98em; min-height:32px;">
+                                            <span style="margin-left:auto; display:flex; align-items:center; gap:4px; color:#6c757d;">
+                                                <i class="far fa-calendar-alt"></i>
+                                                @ev.StartDate.ToString("dd.MM.yyyy") - @ev.EndDate.ToString("dd.MM.yyyy")
+                                            </span>
+                                        </div>
+                                        <div class="mb-1">
+                                            <span class="badge" style="background:@(ev.Category != null ? ev.Category.Color : color);color:#fff;">@((ev.Category != null ? ev.Category.Name : "Kategori Yok"))</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+</div>
+

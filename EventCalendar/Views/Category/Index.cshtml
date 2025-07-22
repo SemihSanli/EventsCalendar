@@ -1,0 +1,74 @@
+﻿@model IEnumerable<EventCalendar.Entities.Category>
+@{
+    ViewBag.Title = "Kategoriler";
+    Layout = "~/Views/Shared/_MainLayout.cshtml";
+    string GetDarkerColor(string hex, double factor = 0.7)
+    {
+        if (string.IsNullOrEmpty(hex) || !hex.StartsWith("#") || (hex.Length != 7 && hex.Length != 4)) return "#333";
+        int r, g, b;
+        if (hex.Length == 7)
+        {
+            r = Convert.ToInt32(hex.Substring(1, 2), 16);
+            g = Convert.ToInt32(hex.Substring(3, 2), 16);
+            b = Convert.ToInt32(hex.Substring(5, 2), 16);
+        }
+        else // #rgb
+        {
+            r = Convert.ToInt32(new string(hex[1], 2), 16);
+            g = Convert.ToInt32(new string(hex[2], 2), 16);
+            b = Convert.ToInt32(new string(hex[3], 2), 16);
+        }
+        r = (int)(r * factor);
+        g = (int)(g * factor);
+        b = (int)(b * factor);
+        return $"rgb({r},{g},{b})";
+    }
+}
+
+<h2 class="mb-4 text-center" style="font-size:2.2rem;font-weight:700;letter-spacing:1px;color:#333;">
+    <span style="font-size:2.2rem;vertical-align:middle;">🏷️</span> Kategoriler
+</h2>
+
+<div class="row">
+@foreach (var cat in Model)
+{
+    var darkColor = GetDarkerColor(cat.Color, 0.6);
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card shadow-sm h-100 border-0" style="background:@darkColor; color:#fff;">
+            <div class="card-body d-flex flex-column justify-content-between">
+                <div>
+                    <h5 class="card-title mb-2" style="color:#fff;">@cat.Name</h5>
+                    <div class="mb-2">
+                        <span class="badge" style="background:rgba(255,255,255,0.15);color:#fff;font-weight:bold;">@cat.Name</span>
+                    </div>
+                    <div class="mb-2" style="font-size:0.95em;">
+                        <i class="fas fa-palette"></i> <span style="color:#fff">@cat.Color</span>
+                    </div>
+                </div>
+                <div class="mt-3 d-flex gap-2">
+                    <a href="/Category/UpdateCategory/@cat.CategoryId" class="btn btn-sm btn-light mr-2" title="Düzenle"><i class="fas fa-edit"></i> Düzenle</a>
+                    <button class="btn btn-sm btn-danger delete-category-btn" data-category-id="@cat.CategoryId" title="Sil"><i class="fas fa-trash"></i> Sil</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+</div>
+
+@section scripts {
+<script>
+$(document).on('click', '.delete-category-btn', function() {
+    var id = $(this).data('category-id');
+    if (confirm('Bu kategoriyi silmek istediğinize emin misiniz?')) {
+        $.post('/Category/DeleteCategory', { id: id }, function(res) {
+            if (res.success) {
+                $("[data-category-id='" + id + "']").closest('.col-md-6, .col-lg-4').fadeOut(300, function() { $(this).remove(); });
+            } else {
+                alert('Silme başarısız: ' + (res.message || 'Bilinmeyen hata'));
+            }
+        });
+    }
+});
+</script>
+}
+
